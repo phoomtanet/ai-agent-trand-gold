@@ -93,13 +93,22 @@ def _build_user_message(
 
 
 def _extract_json(text: str) -> dict:
-    # strip markdown code fences if present
     clean = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
-    # find first { ... } block
     match = re.search(r"\{.*\}", clean, re.DOTALL)
-    if match:
-        return json.loads(match.group())
-    return json.loads(clean)
+    candidate = match.group() if match else clean
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        # truncated response — close open braces/strings and retry
+        fixed = candidate
+        if fixed.count('"') % 2 == 1:
+            fixed += '"'
+        open_braces = fixed.count("{") - fixed.count("}")
+        fixed += "}" * max(open_braces, 1)
+        try:
+            return json.loads(fixed)
+        except json.JSONDecodeError:
+            return {}
 
 
 def _enforce_safety(result: dict) -> dict:
@@ -147,7 +156,18 @@ def analyze(
     raw = resp.json()["choices"][0]["message"]["content"]
     result = _extract_json(raw)
 
-    # fill missing optional fields with None
+    if not result or "direction" not in result:
+        print(f"[analyzer] WARN: could not parse LLM response, using safe fallback. raw={raw[:120]!r}")
+        result = {k: None for k in _REQUIRED_FIELDS}
+        result.update({
+            "reason_th": "ไม่สามารถ parse คำตอบจาก AI ได้",
+            "direction": "long",
+            "is_safe_entry": False,
+            "safety_score": 0,
+            "confidence": 0,
+            "summary_th": "AI response error — ไม่เทรด",
+        })
+
     for key in _REQUIRED_FIELDS:
         result.setdefault(key, None)
 
