@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XAU/USD AI Analyzer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d0d1a;
+    --panel:    #1a1a2e;
+    --border:   #2a2a4a;
+    --green:    #00ff88;
+    --red:      #ff4455;
+    --yellow:   #ffcc00;
+    --blue:     #4488ff;
+    --gray:     #666688;
+    --white:    #e8e8ff;
+    --dim:      #9999bb;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  #header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: #111125;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  #live-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--gray);
+    flex-shrink: 0;
+  }
+  #live-dot.connected { background: var(--green); animation: pulse 2s infinite; }
+  #live-dot.error     { background: var(--red); }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+  #header-title { font-weight: bold; font-size: 15px; color: var(--white); flex: 1; }
+  #header-meta  { color: var(--dim); font-size: 12px; text-align: right; line-height: 1.5; }
+
+  .grid { display: grid; gap: 10px; padding: 10px; }
+  .row2 { grid-template-columns: 1fr 2fr; }
+  .row1 { grid-template-columns: 1fr; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    transition: border-color .3s;
+  }
+  .panel.flash { animation: flashpanel .5s; }
+  @keyframes flashpanel {
+    0%   { border-color: #ffffff88; background: #2a2a4a; }
+    100% { border-color: var(--border); background: var(--panel); }
+  }
+
+  .panel-label {
+    font-size: 10px;
+    color: var(--gray);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .g  { color: var(--green); }
+  .r  { color: var(--red); }
+  .y  { color: var(--yellow); }
+  .b  { color: var(--blue); }
+  .d  { color: var(--dim); }
+  .w  { color: var(--white); }
+
+  #price-value { font-size: 28px; font-weight: bold; line-height: 1.1; }
+  #price-change { font-size: 16px; margin: 2px 0 6px; }
+  .ohlcv-row { color: var(--dim); font-size: 11px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { color: var(--gray); font-weight: normal; font-size: 11px; padding: 2px 4px; text-align: left; }
+  td { padding: 3px 4px; }
+  .tf-label { color: var(--blue); font-weight: bold; }
+
+  #rule-verdict { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+  .rule-row { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0; font-size: 12px; }
+  #soft-score-bar { height: 6px; background: var(--border); border-radius: 3px; margin: 6px 0 4px; }
+  #soft-score-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+
+  .ctx-row { display: flex; justify-content: space-between; margin: 3px 0; font-size: 12px; }
+  #ctx-summary { margin-top: 6px; color: var(--dim); font-size: 11px; line-height: 1.4; }
+
+  .pat-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .pat-row:last-child { border-bottom: none; }
+  .pat-sim { width: 50px; color: var(--blue); }
+  .pat-time { color: var(--dim); flex: 1; }
+  .pat-result { text-align: right; }
+
+  #analysis-verdict { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+  .ai-row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 12px; }
+  #reason-text { margin-top: 8px; color: var(--dim); font-size: 11px; line-height: 1.5; font-family: sans-serif; }
+
+  #risk-verdict { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
+  .risk-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 4px; margin: 4px 0; font-size: 12px; align-items: center; }
+  .risk-label { color: var(--dim); }
+  .risk-note  { color: var(--gray); font-size: 10px; text-align: right; }
+
+  .waiting { color: var(--gray); font-size: 13px; padding: 8px 0; display: block; }
+
+  #status-bar {
+    text-align: center;
+    padding: 6px;
+    font-size: 11px;
+    color: var(--gray);
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="live-dot"></div>
+  <div id="header-title">XAU/USD AI Analyzer</div>
+  <div id="header-meta">
+    <span id="hdr-time">–</span><br>
+    <span id="hdr-cycle" class="d">Cycle –</span>
+  </div>
+</div>
+
+<div class="grid row2">
+  <div class="panel" id="p-price">
+    <div class="panel-label">STEP 1 · PRICE</div>
+    <div id="price-value" class="w">–</div>
+    <div id="price-change" class="d">–</div>
+    <div id="price-session" class="b" style="margin-bottom:6px">–</div>
+    <div class="ohlcv-row" id="ohlcv-row">O:– H:– L:– C:–</div>
+  </div>
+
+  <div class="panel" id="p-ind">
+    <div class="panel-label">STEP 2 · INDICATORS (4 TF)</div>
+    <table>
+      <thead><tr><th>TF</th><th>RSI</th><th>MACD</th><th>BB%</th><th>EMA</th><th>ATR</th></tr></thead>
+      <tbody id="ind-body"><tr><td colspan="6" class="d">กำลังรอข้อมูล...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="grid row2">
+  <div class="panel" id="p-ctx">
+    <div class="panel-label">STEP 3 · MARKET CONTEXT</div>
+    <div class="ctx-row"><span class="d">DXY</span>  <span id="ctx-dxy">–</span></div>
+    <div class="ctx-row"><span class="d">Bond</span> <span id="ctx-bond">–</span></div>
+    <div class="ctx-row"><span class="d">SPX</span>  <span id="ctx-spx">–</span></div>
+    <div class="ctx-row"><span class="d">BTC</span>  <span id="ctx-btc">–</span></div>
+    <div class="ctx-row"><span class="d">Oil</span>  <span id="ctx-oil">–</span></div>
+    <div class="ctx-row" style="margin-top:4px"><span class="d">Sentiment</span><span id="ctx-sentiment">–</span></div>
+    <div id="ctx-summary"></div>
+  </div>
+
+  <div class="panel" id="p-rule">
+    <div class="panel-label">STEP 4 · RULE ENGINE</div>
+    <div id="rule-verdict">–</div>
+    <div id="hard-rules"></div>
+    <div style="border-top:1px solid var(--border); margin:6px 0;"></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+      <span class="d">Soft Score</span>
+      <span id="soft-score-text" class="w">–</span>
+    </div>
+    <div id="soft-score-bar"><div id="soft-score-fill"></div></div>
+    <div id="soft-reasons"></div>
+  </div>
+</div>
+
+<div class="grid row1">
+  <div class="panel" id="p-pat">
+    <div class="panel-label">STEP 5 · SIMILAR PATTERNS (Pattern Memory 7 วัน)</div>
+    <div id="patterns-body"><span class="d">ยังไม่มี historical data</span></div>
+  </div>
+</div>
+
+<div class="grid row2">
+  <div class="panel" id="p-ai">
+    <div class="panel-label">STEP 6 · AI ANALYSIS</div>
+    <div id="analysis-verdict" class="d">–</div>
+    <div id="ai-content"><span class="waiting">รอ Rule Engine ผ่านก่อน...</span></div>
+  </div>
+
+  <div class="panel" id="p-risk">
+    <div class="panel-label">STEP 7 · RISK PLAN</div>
+    <div id="risk-verdict" class="d">–</div>
+    <div id="risk-content"><span class="waiting">รอ Rule Engine ผ่านก่อน...</span></div>
+  </div>
+</div>
+
+<div id="status-bar">กำลังเชื่อมต่อ WebSocket...</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function chgColor(v) {
+  if (v == null) return 'w';
+  return v > 0 ? 'g' : v < 0 ? 'r' : 'y';
+}
+function chgStr(v, d) {
+  if (v == null) return '–';
+  const s = v > 0 ? '+' : '';
+  return s + Number(v).toFixed(d ?? 2) + '%';
+}
+function impactColor(s) {
+  return { positive:'g', negative:'r', neutral:'y', risk_on:'g', risk_off:'r' }[s] || 'y';
+}
+function macdColor(s) { return s==='bullish'?'g':s==='bearish'?'r':'y'; }
+function emaColor(s)  { return s==='up'?'g':s==='down'?'r':'y'; }
+function esc(v) { return String(v ?? '–'); }
+
+function fmtP(v) {
+  return v != null ? Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '–';
+}
+function fmtPct(v) {
+  return v != null ? (v>=0?'+':'')+Number(v).toFixed(3)+'%' : '–';
+}
+function fmtRR(v) { return v != null ? Number(v).toFixed(2) : '–'; }
+
+function flash(id) {
+  const el = $(id);
+  if (!el) return;
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+
+function renderPrice(d) {
+  const p = d.price || {};
+  const v = p.value;
+  const chg = p.change_1m;
+  $('price-value').textContent = v != null
+    ? '$' + Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '–';
+  $('price-value').className = chg > 0 ? 'g' : chg < 0 ? 'r' : 'w';
+  const arrow = chg > 0 ? '▲' : chg < 0 ? '▼' : '▶';
+  $('price-change').innerHTML = `<span class="${chgColor(chg)}">${arrow} ${chgStr(chg, 3)}</span>`;
+  $('price-session').textContent = p.session || '–';
+  const o = p.ohlcv || {};
+  $('ohlcv-row').textContent = `O:${o.open??'–'}  H:${o.high??'–'}  L:${o.low??'–'}  C:${o.close??'–'}`;
+  flash('p-price');
+}
+
+function renderIndicators(d) {
+  const ind = d.indicators || {};
+  const tfs = ['1m','5m','15m','1h'];
+  $('ind-body').innerHTML = tfs.map(tf => {
+    const i = ind[tf] || {};
+    const rsi = i.rsi != null ? Number(i.rsi).toFixed(0) : '–';
+    const rsiCls = i.rsi < 30 || i.rsi > 70 ? 'r' : 'w';
+    const macd = i.macd_trend || '–';
+    const bb = i.bb_pct != null ? (Number(i.bb_pct)*100).toFixed(0)+'%' : '–';
+    const ema = i.ema_trend || '–';
+    const atr = i.atr != null ? Number(i.atr).toFixed(2) : '–';
+    return `<tr>
+      <td class="tf-label">${tf}</td>
+      <td class="${rsiCls}">${rsi}</td>
+      <td class="${macdColor(macd)}">${macd==='bullish'?'↗ bullish':macd==='bearish'?'↘ bearish':'→ neutral'}</td>
+      <td class="w">${bb}</td>
+      <td class="${emaColor(ema)}">${ema}</td>
+      <td class="d">${atr}</td>
+    </tr>`;
+  }).join('');
+  flash('p-ind');
+}
+
+function renderContext(d) {
+  const c = d.market_context || {};
+  function cell(chg, impact) {
+    return `<span class="${impactColor(impact)}">${chgStr(chg,2)} ${impact||'–'}</span>`;
+  }
+  $('ctx-dxy').innerHTML  = cell(c.dxy_chg, c.dxy_impact);
+  $('ctx-bond').innerHTML = cell(c.us10y_chg, c.bond_impact);
+  $('ctx-spx').innerHTML  = cell(c.spx_chg, c.risk_sentiment==='risk_on'?'positive':c.risk_sentiment==='risk_off'?'negative':'neutral');
+  $('ctx-btc').innerHTML  = `<span class="${chgColor(c.btc_chg)}">${chgStr(c.btc_chg,2)}</span>`;
+  $('ctx-oil').innerHTML  = `<span class="${chgColor(c.oil_chg)}">${chgStr(c.oil_chg,2)}</span>`;
+  $('ctx-sentiment').innerHTML = `<span class="${impactColor(c.risk_sentiment)}">${esc(c.risk_sentiment)}</span>`;
+  $('ctx-summary').textContent = c.summary || '';
+  flash('p-ctx');
+}
+
+function renderRuleEngine(d) {
+  const re = d.rule_engine || {};
+  const passed = re.passed;
+  const verdict = $('rule-verdict');
+  verdict.innerHTML = passed === true
+    ? '<span class="g">✅ PASS</span>'
+    : passed === false
+      ? '<span class="r">❌ BLOCKED</span>'
+      : '–';
+
+  const hr = re.hard_rules || [];
+  $('hard-rules').innerHTML = hr.map(r =>
+    `<div class="rule-row">
+      <span>${r.passed?'<span class="g">✓</span>':'<span class="r">✗</span>'}</span>
+      <span class="${r.passed?'w':'r'}">${esc(r.name)}</span>
+      <span class="d" style="margin-left:auto;font-size:11px">${esc(r.detail)}</span>
+    </div>`
+  ).join('');
+
+  const score = re.soft_score ?? 0;
+  $('soft-score-text').textContent = `${score} / 6  (ต้องได้ ≥ 3)`;
+  const pct = Math.min(score / 6 * 100, 100);
+  const fill = $('soft-score-fill');
+  fill.style.width = pct + '%';
+  fill.style.background = score >= 3 ? 'var(--green)' : 'var(--red)';
+
+  const reasons = re.soft_reasons || re.failed_reasons || [];
+  $('soft-reasons').innerHTML = reasons.map(r => {
+    const cls = r.startsWith('+') ? 'g' : (r.startsWith('–')||r.startsWith('-')) ? 'r' : 'd';
+    return `<div class="rule-row" style="font-size:11px"><span class="${cls}">${esc(r)}</span></div>`;
+  }).join('');
+  flash('p-rule');
+}
+
+function renderPatterns(d) {
+  const pats = d.similar_patterns;
+  if (!pats || pats.length === 0) {
+    $('patterns-body').innerHTML = '<span class="d">ยังไม่มี historical data</span>';
+    flash('p-pat');
+    return;
+  }
+  $('patterns-body').innerHTML = pats.map((p, i) => {
+    const ts = p.timestamp ? p.timestamp.replace('T',' ').slice(0,16) : '–';
+    const sim = p.similarity != null ? Number(p.similarity).toFixed(2) : '–';
+    const chg = p.price_change_15m;
+    const label = p.result_label || (p.prediction_correct===true?'ทายถูก':p.prediction_correct===false?'ทายผิด':'–');
+    const lCls = label.includes('ถูก')?'g':label.includes('ผิด')?'r':'d';
+    const cStr = chg!=null ? (chg>0?'+':'')+Number(chg).toFixed(2)+'%' : '';
+    return `<div class="pat-row">
+      <span class="pat-sim">${sim}</span>
+      <span class="pat-time">#${i+1} ${ts} UTC</span>
+      <span class="d">${esc(p.prediction||p.pattern_label)}</span>
+      <span class="pat-result">
+        <span class="${lCls}">${label}</span>
+        ${cStr?`<span class="d"> (${cStr})</span>`:''}
+      </span>
+    </div>`;
+  }).join('');
+  flash('p-pat');
+}
+
+function renderAnalysis(d) {
+  const re = d.rule_engine || {};
+  const an = d.analysis;
+  if (!re.passed) {
+    $('analysis-verdict').innerHTML = '<span class="d">⏸ รอ Rule ผ่าน</span>';
+    $('ai-content').innerHTML = '<span class="waiting">Rule Engine ยังไม่ผ่าน</span>';
+    flash('p-ai'); return;
+  }
+  if (!an) {
+    $('analysis-verdict').innerHTML = '<span class="y">⏳ รอ AI...</span>';
+    $('ai-content').innerHTML = '<span class="waiting">กำลังวิเคราะห์...</span>';
+    flash('p-ai'); return;
+  }
+  const safe = an.is_safe_entry;
+  $('analysis-verdict').innerHTML = safe
+    ? '<span class="g">🟢 SAFE ENTRY</span>'
+    : '<span class="r">🔴 NO SAFE ENTRY</span>';
+
+  const dirCls = an.direction==='long'?'g':an.direction==='short'?'r':'d';
+  const sCls   = (an.safety_score||0)>=6 ? 'g' : 'r';
+  const cCls   = (an.confidence||0)>=60  ? 'g' : 'r';
+  $('ai-content').innerHTML = `
+    <div class="ai-row"><span class="d">Direction</span><span class="${dirCls}">${esc(an.direction)}</span></div>
+    <div class="ai-row"><span class="d">Safety</span><span class="${sCls}">${esc(an.safety_score)} / 10</span></div>
+    <div class="ai-row"><span class="d">Confidence</span><span class="${cCls}">${esc(an.confidence)}%</span></div>
+    <div class="ai-row"><span class="d">MTF</span><span class="w" style="font-size:11px;text-align:right;max-width:180px">${esc(an.mtf_assessment)}</span></div>
+    <div class="ai-row"><span class="d">Pattern</span><span class="b">${esc(an.pattern_label)}</span></div>
+    <div id="reason-text">${esc(an.reason_th || an.summary_th)}</div>`;
+  flash('p-ai');
+}
+
+function renderRisk(d) {
+  const re = d.rule_engine || {};
+  const an = d.analysis;
+  const rk = d.risk;
+  if (!re.passed) {
+    $('risk-verdict').innerHTML = '<span class="d">⏸ ไม่มีแผนการเทรด</span>';
+    $('risk-content').innerHTML = '<span class="waiting">Rule Engine ยังไม่ผ่าน</span>';
+    flash('p-risk'); return;
+  }
+  if (!an || !an.is_safe_entry) {
+    $('risk-verdict').innerHTML = '<span class="r">❌ ไม่มีจุดเข้าที่ปลอดภัย</span>';
+    $('risk-content').innerHTML = `<span class="waiting d">${esc(an?an.summary_th:'–')}</span>`;
+    flash('p-risk'); return;
+  }
+  if (!rk) {
+    $('risk-verdict').innerHTML = '<span class="y">⏳ รอคำนวณ Risk...</span>';
+    $('risk-content').innerHTML = '';
+    flash('p-risk'); return;
+  }
+  const dirCls = an.direction==='long'?'g':'r';
+  const rrValid = rk.valid !== false;
+  const rrCls = rrValid ? 'g' : 'r';
+  $('risk-verdict').innerHTML = `<span class="${dirCls}">${(an.direction||'–').toUpperCase()}</span>`;
+  $('risk-content').innerHTML = `
+    <div class="risk-row">
+      <span class="risk-label d">Entry</span>
+      <span class="w">$${fmtP(rk.entry_low)} – $${fmtP(rk.entry_high)}</span>
+      <span class="risk-note"></span>
+    </div>
+    <div class="risk-row">
+      <span class="risk-label d">Stop Loss</span>
+      <span class="r">$${fmtP(rk.stop_loss)} <span class="d">(${fmtPct(rk.sl_pct)})</span></span>
+      <span class="risk-note">ATR×1.2</span>
+    </div>
+    <div class="risk-row">
+      <span class="risk-label d">Take Profit</span>
+      <span class="g">$${fmtP(rk.take_profit)} <span class="d">(${fmtPct(rk.tp_pct)})</span></span>
+      <span class="risk-note">ATR×1.5</span>
+    </div>
+    <div class="risk-row" style="margin-top:6px">
+      <span class="risk-label d">R:R Ratio</span>
+      <span class="${rrCls}">${fmtRR(rk.rr_ratio)} : 1  ${rrValid?'✓ VALID':'✗ R:R ต่ำกว่า 1.0'}</span>
+      <span class="risk-note"></span>
+    </div>`;
+  flash('p-risk');
+}
+
+function applyData(data) {
+  const ts = data.timestamp ? data.timestamp.replace('T',' ').slice(0,19)+' UTC' : '–';
+  $('hdr-time').textContent = ts;
+  $('hdr-cycle').textContent = `Cycle #${data.cycle ?? '–'}`;
+  renderPrice(data);
+  renderIndicators(data);
+  renderContext(data);
+  renderRuleEngine(data);
+  renderPatterns(data);
+  renderAnalysis(data);
+  renderRisk(data);
+}
+
+let ws, reconnectDelay = 2000;
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => {
+    $('live-dot').className = 'connected';
+    $('status-bar').textContent = 'เชื่อมต่อแล้ว — รอข้อมูล cycle ถัดไป...';
+    reconnectDelay = 2000;
+  };
+  ws.onmessage = e => {
+    try {
+      const data = JSON.parse(e.data);
+      applyData(data);
+      const ts = data.timestamp ? data.timestamp.slice(0,19).replace('T',' ') : '–';
+      $('status-bar').textContent = `อัพเดตล่าสุด: ${ts} UTC`;
+    } catch(err) { console.error('parse', err); }
+  };
+  ws.onerror = () => {
+    $('live-dot').className = 'error';
+    $('status-bar').textContent = 'WebSocket error — กำลัง reconnect...';
+  };
+  ws.onclose = () => {
+    $('live-dot').className = 'error';
+    $('status-bar').textContent = `การเชื่อมต่อหลุด — reconnect ใน ${reconnectDelay/1000}s...`;
+    setTimeout(() => { reconnectDelay = Math.min(reconnectDelay*1.5, 30000); connect(); }, reconnectDelay);
+  };
+}
+connect();
+</script>
+</body>
+</html>

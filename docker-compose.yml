@@ -7,6 +7,8 @@ services:
       MONGODB_URI: mongodb://mongodb:27017
       PYTHONUNBUFFERED: "1"
       PYTHONIOENCODING: utf-8
+    ports:
+      - "8080:8080"
     depends_on:
       mongodb:
         condition: service_healthy

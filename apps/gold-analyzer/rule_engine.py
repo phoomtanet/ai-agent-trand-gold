@@ -7,8 +7,9 @@ from dataclasses import dataclass, field
 class RuleResult:
     passed: bool
     soft_score: int
-    failed_reasons: list[str] = field(default_factory=list)
-    soft_reasons:   list[str] = field(default_factory=list)
+    failed_reasons: list[str]       = field(default_factory=list)
+    soft_reasons:   list[str]       = field(default_factory=list)
+    hard_rules:     list[dict]      = field(default_factory=list)
 
 
 # ─── Hard Rules ───────────────────────────────────────────────────────────────
@@ -85,14 +86,15 @@ def check(ind: dict, market_ctx: dict | None = None) -> RuleResult:
     ctx = market_ctx or {}
 
     # Hard Rules — ต้องผ่านทั้งหมด
-    hard_checks = [
-        _macd_1m_5m_aligned(ind),
-        _rsi_not_extreme(ind),
-        _atr_not_spiked(ind),
+    hard_check_results = [
+        ("MACD 1m+5m aligned", *_macd_1m_5m_aligned(ind)),
+        ("RSI not extreme",    *_rsi_not_extreme(ind)),
+        ("ATR not spiked",     *_atr_not_spiked(ind)),
     ]
-    failed_reasons = [msg for ok, msg in hard_checks if not ok]
+    hard_rules = [{"name": name, "passed": ok, "detail": msg} for name, ok, msg in hard_check_results]
+    failed_reasons = [msg for _, ok, msg in hard_check_results if not ok]
     if failed_reasons:
-        return RuleResult(passed=False, soft_score=0, failed_reasons=failed_reasons)
+        return RuleResult(passed=False, soft_score=0, failed_reasons=failed_reasons, hard_rules=hard_rules)
 
     # Soft Score — ต้องได้ >= 3 (max 6)
     soft_checks = [
@@ -114,6 +116,7 @@ def check(ind: dict, market_ctx: dict | None = None) -> RuleResult:
         soft_score=soft_score,
         failed_reasons=failed_reasons,
         soft_reasons=soft_reasons,
+        hard_rules=hard_rules,
     )
 
 

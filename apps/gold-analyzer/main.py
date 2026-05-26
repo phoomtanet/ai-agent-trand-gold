@@ -17,6 +17,9 @@ import analyzer
 import risk_manager
 import notifier
 import outcome_tracker
+import web_server
+
+_cycle_count = 0
 
 # ── logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -84,6 +87,10 @@ def _log_cycle(
 
 
 def run_cycle() -> None:
+    global _cycle_count
+    _cycle_count += 1
+    cycle = _cycle_count
+
     try:
         # ── Fetch ──────────────────────────────────────────────────────
         data = fetcher.fetch_all()
@@ -112,17 +119,30 @@ def run_cycle() -> None:
             )
             if config.NOTIFY_NO_TRADE:
                 notifier.send_no_trade(data.price, data.change_1m, rule.failed_reasons, ctx)
+            web_server.broadcast_cycle({
+                "type": "cycle_update",
+                "cycle": cycle,
+                "timestamp": data.timestamp.isoformat() if hasattr(data.timestamp, 'isoformat') else str(data.timestamp),
+                "price": {"value": data.price, "change_1m": data.change_1m, "ohlcv": data.ohlcv, "session": ctx.get("session")},
+                "indicators": ind,
+                "market_context": ctx,
+                "rule_engine": {"passed": False, "soft_score": rule.soft_score, "failed_reasons": rule.failed_reasons, "soft_reasons": rule.soft_reasons, "hard_rules": rule.hard_rules},
+                "similar_patterns": [],
+                "analysis": None,
+                "risk": None,
+            })
             return
 
         # ── Embedding + Similar Patterns ────────────────────────────────
         emb_result = embedder.get_embedding_and_similar(
             data.price, data.change_1m, ind, ctx
         )
+        similar_patterns = emb_result.get("similar_patterns", [])
 
         # ── LLM Analysis ────────────────────────────────────────────────
         analysis = analyzer.analyze(
             data.price, data.change_1m, ind, ctx,
-            emb_result.get("similar_patterns", []),
+            similar_patterns,
         )
 
         # ── Risk Manager ─────────────────────────────────────────────────
@@ -148,13 +168,26 @@ def run_cycle() -> None:
             market_context=ctx,
             rule_engine={"passed": True, "failed_reasons": []},
             embedding=emb_result.get("embedding"),
-            similar_patterns=emb_result.get("similar_patterns", []),
+            similar_patterns=similar_patterns,
             analysis=analysis,
             status=status,
         )
 
         if analysis.get("is_safe_entry") and risk.get("valid"):
             notifier.send_safe_entry(data.price, data.change_1m, ind, ctx, analysis, risk)
+
+        web_server.broadcast_cycle({
+            "type": "cycle_update",
+            "cycle": cycle,
+            "timestamp": data.timestamp.isoformat() if hasattr(data.timestamp, 'isoformat') else str(data.timestamp),
+            "price": {"value": data.price, "change_1m": data.change_1m, "ohlcv": data.ohlcv, "session": ctx.get("session")},
+            "indicators": ind,
+            "market_context": ctx,
+            "rule_engine": {"passed": True, "soft_score": rule.soft_score, "failed_reasons": rule.failed_reasons, "soft_reasons": rule.soft_reasons, "hard_rules": rule.hard_rules},
+            "similar_patterns": similar_patterns,
+            "analysis": analysis,
+            "risk": risk,
+        })
 
     except Exception as e:
         print(f"[{_ts()}] ERROR in run_cycle: {e}")
@@ -174,6 +207,8 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
 
     _validate_startup()
+
+    web_server.start()
 
     scheduler = BlockingScheduler(timezone="UTC")
     scheduler.add_job(run_cycle,           "interval", seconds=config.FETCH_INTERVAL_SEC, id="run_cycle",   next_run_time=datetime.now(timezone.utc))
