@@ -167,17 +167,19 @@ apps/gold-analyzer/
   - [x] FIX #1: yfinance ไม่รองรับ `period="2h"` | fix: เปลี่ยนเป็น `period="1d"`
   - [x] FIX #2: `TimedeltaIndex.abs()` ไม่มีใน pandas version นี้ | fix: ใช้ `np.abs(secs).argmin()`
 
-- [ ] 3.3 `main.py` — startup validation + APScheduler run_cycle() ทุก 60s
-  - 🧪 test: `python main.py` → เห็น log ทุก 60 วินาที ไม่ crash
+- [x] 3.3 `main.py` — startup validation + APScheduler run_cycle() ทุก 60s
+  - 🧪 test: `python main.py` → เห็น log ทุก 60 วินาที ไม่ crash ✓
   - 📝 commit: `feat(3.3): add main scheduler with startup validation`
 
 ---
 
 ### Phase 4 — Deploy
 
-- [ ] 4.1 `requirements.txt` + `Dockerfile`
-  - 🧪 test: `docker build -t gold-analyzer .` → build สำเร็จ ไม่มี error
+- [x] 4.1 `requirements.txt` + `Dockerfile`
+  - 🧪 test: `docker build -t gold-analyzer .` → build สำเร็จ ไม่มี error ✓
   - 📝 commit: `feat(4.1): add dockerfile and requirements`
+
+  - [x] FIX #1: Dockerfile ใช้ `python:3.12-slim` แต่ packages build กับ 3.11 | fix: เปลี่ยนเป็น `python:3.11-slim` + เพิ่ม `PYTHONUNBUFFERED=1`
 
 - [ ] 4.2 `docker-compose.yml` — gold-analyzer + mongodb services
   - 🧪 test: `docker-compose up` → ทั้งสอง service up, log ปกติ
