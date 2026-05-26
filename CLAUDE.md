@@ -142,12 +142,12 @@ apps/gold-analyzer/
   - 🧪 test: `python embedder.py` → print embedding dim + top-3 similar patterns ✓
   - 📝 commit: `feat(2.2): add embedder with cosine similarity search`
 
-- [ ] 2.3 `analyzer.py` — OpenRouter LLM prompt + parse JSON output
-  - 🧪 test: `python analyzer.py` → print analysis JSON ครบทุก field
+- [x] 2.3 `analyzer.py` — OpenRouter LLM prompt + parse JSON output
+  - 🧪 test: `python analyzer.py` → print analysis JSON ครบทุก field ✓
   - 📝 commit: `feat(2.3): add llm analyzer with structured json output`
 
-- [ ] 2.4 `risk_manager.py` — ATR × 1.2/1.5 SL/TP + RR validation
-  - 🧪 test: `python risk_manager.py` → print entry/SL/TP/RR ถูกต้อง
+- [x] 2.4 `risk_manager.py` — ATR × 1.2/1.5 SL/TP + RR validation
+  - 🧪 test: `python risk_manager.py` → print entry/SL/TP/RR ถูกต้อง ✓
   - 📝 commit: `feat(2.4): add atr-based risk manager`
 
 ---
