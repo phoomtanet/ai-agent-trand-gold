@@ -3,11 +3,20 @@ services:
     build: ./apps/gold-analyzer
     restart: unless-stopped
     env_file: .env
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017
+      PYTHONUNBUFFERED: "1"
+      PYTHONIOENCODING: utf-8
     depends_on:
       mongodb:
         condition: service_healthy
-    environment:
-      MONGODB_URI: mongodb://mongodb:27017
+    networks:
+      - gold_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   mongodb:
     image: mongo:7
@@ -16,11 +25,22 @@ services:
       - "27057:27017"
     volumes:
       - mongo_data:/data/db
+    networks:
+      - gold_net
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  gold_net:
+    driver: bridge
 
 volumes:
   mongo_data:

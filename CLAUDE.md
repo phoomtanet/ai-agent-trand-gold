@@ -181,8 +181,8 @@ apps/gold-analyzer/
 
   - [x] FIX #1: Dockerfile ใช้ `python:3.12-slim` แต่ packages build กับ 3.11 | fix: เปลี่ยนเป็น `python:3.11-slim` + เพิ่ม `PYTHONUNBUFFERED=1`
 
-- [ ] 4.2 `docker-compose.yml` — gold-analyzer + mongodb services
-  - 🧪 test: `docker-compose up` → ทั้งสอง service up, log ปกติ
+- [x] 4.2 `docker-compose.yml` — gold-analyzer + mongodb services
+  - 🧪 test: `docker-compose up` → ทั้งสอง service up, log ปกติ ✓
   - 📝 commit: `feat(4.2): add docker-compose with mongodb`
 
 - [ ] 4.3 ทดสอบ end-to-end
