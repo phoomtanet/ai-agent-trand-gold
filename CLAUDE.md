@@ -115,8 +115,8 @@ apps/gold-analyzer/
   - 🧪 test: `python indicators.py` → print dict ครบ 4 TF ไม่มี NaN ✓
   - 📝 commit: `feat(1.3): add multi-timeframe technical indicators`
 
-- [ ] 1.4 `market_context.py` — วิเคราะห์ DXY/Bond/SPX/BTC/Oil → summary text
-  - 🧪 test: `python market_context.py` → print summary + session + bias
+- [x] 1.4 `market_context.py` — วิเคราะห์ DXY/Bond/SPX/BTC/Oil → summary text
+  - 🧪 test: `python market_context.py` → print summary + session + bias ✓
   - 📝 commit: `feat(1.4): add market context analyzer`
 
 - [ ] 1.5 `storage.py` — MongoDB CRUD + สร้าง indexes
