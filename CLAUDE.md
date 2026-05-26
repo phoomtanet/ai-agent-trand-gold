@@ -160,9 +160,12 @@ apps/gold-analyzer/
   - [x] FIX #1: 400 Bad Request — `<` ใน failed_reasons ถูกตีความเป็น HTML tag | fix: `html.escape()` บน reasons text
   - 📝 commit: `feat(3.1): add telegram notifier with safe entry and no trade`
 
-- [ ] 3.2 `outcome_tracker.py` — อัพเดต prediction_correct + result_label ("ทายถูก"/"ทายผิด") หลัง 15 นาที
-  - 🧪 test: insert mock record อายุ > 15m → tracker อัพเดต outcome + result_label ได้
+- [x] 3.2 `outcome_tracker.py` — อัพเดต prediction_correct + result_label ("ทายถูก"/"ทายผิด") หลัง 15 นาที
+  - 🧪 test: insert mock record อายุ > 15m → tracker อัพเดต outcome + result_label ได้ ✓
   - 📝 commit: `feat(3.2): add 15m outcome tracker with result_label`
+
+  - [x] FIX #1: yfinance ไม่รองรับ `period="2h"` | fix: เปลี่ยนเป็น `period="1d"`
+  - [x] FIX #2: `TimedeltaIndex.abs()` ไม่มีใน pandas version นี้ | fix: ใช้ `np.abs(secs).argmin()`
 
 - [ ] 3.3 `main.py` — startup validation + APScheduler run_cycle() ทุก 60s
   - 🧪 test: `python main.py` → เห็น log ทุก 60 วินาที ไม่ crash
