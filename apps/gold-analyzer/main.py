@@ -50,7 +50,7 @@ def _validate_startup() -> None:
     print(f"[main] ✓ OpenRouter embedding (dim={len(test_emb)})")
 
     # 4. Telegram
-    ok = notifier.send_error("Gold Analyzer started ✅")
+    ok = notifier.send_startup()
     assert ok, "Telegram send failed"
     print("[main] ✓ Telegram")
 

@@ -97,8 +97,13 @@ def send_no_trade(
     return ok
 
 
+def send_startup() -> bool:
+    text = f"<b>Gold Analyzer — Started ✅</b>\n\nระบบเริ่มทำงานแล้ว\n{_now_th()}"
+    return _send(text)
+
+
 def send_error(message: str) -> bool:
-    text = f"<b>Gold Analyzer — ERROR ⚠️</b>\n\n{message}\n\n{_now_th()}"
+    text = f"<b>Gold Analyzer — ERROR ⚠️</b>\n\n{_esc(message)}\n\n{_now_th()}"
     return _send(text)
 
 
