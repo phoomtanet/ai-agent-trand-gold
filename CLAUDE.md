@@ -83,6 +83,9 @@ apps/gold-analyzer/
 | `🧪 test:` | วิธีทดสอบ + ผลที่ควรเห็น |
 | `📝 commit:` | ชื่อ git commit ที่แนะนำ |
 
+
+เสร็จแล้วให้เทส ถ้าผ่านให้ x แก้จนผ่านค่อย x
+
 **โครงสร้าง:**
 
 ```
@@ -131,12 +134,12 @@ apps/gold-analyzer/
 
 ### Phase 2 — Intelligence Layer
 
-- [ ] 2.1 `rule_engine.py` — Hard Rules (3 ข้อ) + Soft Score (>= 3/5)
-  - 🧪 test: `python rule_engine.py` → print passed/failed + score + reasons
+- [x] 2.1 `rule_engine.py` — Hard Rules (3 ข้อ) + Soft Score (>= 3/5)
+  - 🧪 test: `python rule_engine.py` → print passed/failed + score + reasons ✓
   - 📝 commit: `feat(2.1): add rule engine with hard+soft scoring`
 
-- [ ] 2.2 `embedder.py` — text embedding + cosine similarity 7 วัน
-  - 🧪 test: `python embedder.py` → print embedding dim + top-3 similar patterns
+- [x] 2.2 `embedder.py` — text embedding + cosine similarity 7 วัน
+  - 🧪 test: `python embedder.py` → print embedding dim + top-3 similar patterns ✓
   - 📝 commit: `feat(2.2): add embedder with cosine similarity search`
 
 - [ ] 2.3 `analyzer.py` — OpenRouter LLM prompt + parse JSON output
