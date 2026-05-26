@@ -154,8 +154,10 @@ apps/gold-analyzer/
 
 ### Phase 3 — Output & Tracking
 
-- [ ] 3.1 `notifier.py` — Telegram SAFE ENTRY + NO TRADE messages
-  - 🧪 test: `python notifier.py` → ข้อความถูกส่งใน Telegram จริง
+- [x] 3.1 `notifier.py` — Telegram SAFE ENTRY + NO TRADE messages
+  - 🧪 test: `python notifier.py` → ข้อความถูกส่งใน Telegram จริง ✓
+
+  - [x] FIX #1: 400 Bad Request — `<` ใน failed_reasons ถูกตีความเป็น HTML tag | fix: `html.escape()` บน reasons text
   - 📝 commit: `feat(3.1): add telegram notifier with safe entry and no trade`
 
 - [ ] 3.2 `outcome_tracker.py` — อัพเดต prediction_correct + result_label ("ทายถูก"/"ทายผิด") หลัง 15 นาที
