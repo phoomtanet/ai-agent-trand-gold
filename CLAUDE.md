@@ -119,9 +119,13 @@ apps/gold-analyzer/
   - 🧪 test: `python market_context.py` → print summary + session + bias ✓
   - 📝 commit: `feat(1.4): add market context analyzer`
 
-- [ ] 1.5 `storage.py` — MongoDB CRUD + สร้าง indexes
-  - 🧪 test: `python storage.py` → insert test doc, query กลับมาได้ครบ
+- [x] 1.5 `storage.py` — MongoDB CRUD + สร้าง indexes
+  - 🧪 test: `python storage.py` → insert test doc, query กลับมาได้ครบ ✓
   - 📝 commit: `feat(1.5): add mongodb storage with indexes`
+
+  - [x] FIX #1: ModuleNotFoundError: No module named 'pymongo' | fix: `python -m pip install pymongo`
+  - [x] FIX #2: `mongodb` hostname ใช้ไม่ได้นอก Docker | fix: `docker-compose up -d mongodb` + เปลี่ยน `.env` เป็น `localhost:27057`
+  - [x] FIX #3: UnicodeEncodeError ตอน print ภาษาไทยบน Windows | fix: `sys.stdout.reconfigure(encoding="utf-8")`
 
 ---
 
