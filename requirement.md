@@ -597,4 +597,212 @@ e:\project\bot-trand\
 
 ---
 
+## Phase 5 — Real-time Web Dashboard
+
+### ภาพรวม
+
+Dashboard แสดงผลการวิเคราะห์ทุก cycle แบบ real-time ผ่าน WebSocket
+แบ่งเป็น **7 panel** ตามลำดับขั้นตอน pipeline เพื่อให้เห็น "กระบวนการคิด" ของระบบ
+
+```
+Browser ←──WebSocket──→ web_server.py ←── broadcast ── run_cycle()
+```
+
+---
+
+### Layout — Pipeline Flow (7 Panels)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  ● LIVE   XAU/USD AI Analyzer      🕐 09:12:23 UTC   Cycle #42 │
+└─────────────────────────────────────────────────────────────────┘
+
+ Row 1
+┌─────────────────────┐  ┌──────────────────────────────────────┐
+│  STEP 1 · PRICE     │  │  STEP 2 · INDICATORS (4 TF)          │
+│  $4,523.70          │  │  TF   RSI   MACD       BB%  EMA  ATR │
+│  ▼ -0.022%          │  │  1m   46  ↗bullish     15%  up  1.93 │
+│  European Session   │  │  5m   50  ↗bullish     50%  up  3.20 │
+│  O:4522 H:4526      │  │  15m  52  ↘bearish     55%  up  8.10 │
+│  L:4521 C:4523      │  │  1h   48  ↗bullish     45% dn  18.70 │
+└─────────────────────┘  └──────────────────────────────────────┘
+
+ Row 2
+┌─────────────────────┐  ┌──────────────────────────────────────┐
+│  STEP 3 · CONTEXT   │  │  STEP 4 · RULE ENGINE                │
+│  DXY  -0.01% neutral│  │  ❌ BLOCKED                          │
+│  Bond +0.00% neutral│  │  Hard: ✓ MACD aligned                │
+│  SPX  +0.04% neutral│  │        ✓ RSI not extreme             │
+│  BTC  +0.00%        │  │        ✓ ATR not spiked              │
+│  Oil  +0.03%        │  │  ─────────────────────               │
+│                     │  │  Soft: 0 / 6  (ต้องได้ ≥ 3)         │
+│  "Dollar ทรงตัว..." │  │  • – MACD 1m ≠ 5m                   │
+│                     │  │  • – RSI 46 นอก sweet spot           │
+└─────────────────────┘  └──────────────────────────────────────┘
+
+ Row 3 (full-width)
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 5 · SIMILAR PATTERNS (Pattern Memory 7 วัน)              │
+│  #1  sim=0.94  2026-05-20 14:30  long → ทายถูก (+0.28%)        │
+│  #2  sim=0.91  2026-05-19 09:15  long → ทายผิด (-0.12%)        │
+│  #3  sim=0.88  2026-05-18 21:00  short → ทายถูก (-0.31%)       │
+│  (ว่างเปล่าถ้ายังไม่มี historical data)                         │
+└─────────────────────────────────────────────────────────────────┘
+
+ Row 4
+┌─────────────────────┐  ┌──────────────────────────────────────┐
+│  STEP 6 · AI        │  │  STEP 7 · RISK PLAN                  │
+│                     │  │                                      │
+│  [กรณี BLOCK]       │  │  [กรณี BLOCK / NO SAFE ENTRY]        │
+│  ⏸ รอ Rule ผ่าน    │  │  ⏸ ไม่มีแผนการเทรด                   │
+│                     │  │                                      │
+│  [กรณี PASS]        │  │  [กรณี SAFE ENTRY]                   │
+│  🟢 SAFE ENTRY      │  │  Direction: LONG                     │
+│  Direction: long    │  │  Entry:  $4,520 – $4,522             │
+│  Safety:  8/10      │  │  SL:     $4,518  (-0.055%)  ATR×1.2 │
+│  Conf:    78%       │  │  TP:     $4,526  (+0.066%)  ATR×1.5 │
+│                     │  │  R:R:    1.25 : 1  ✓ VALID           │
+│  "ราคาทองขึ้นหลัง  │  │                                      │
+│  Dollar อ่อนค่า..." │  │  [กรณี NOT VALID]                    │
+│  MTF: 1m5m15m bull  │  │  ❌ R:R ต่ำกว่า 1.0 — ไม่เทรด        │
+│  Pattern: trend_con │  │                                      │
+└─────────────────────┘  └──────────────────────────────────────┘
+```
+
+---
+
+### Color Scheme (Dark Trading Theme)
+
+| สี | Hex | ใช้สำหรับ |
+|---|---|---|
+| Background | `#0d0d1a` | พื้นหลังทั้งหมด |
+| Panel | `#1a1a2e` | พื้นหลัง panel |
+| Border | `#2a2a4a` | ขอบ panel |
+| Green | `#00ff88` | bullish / pass / safe / บวก |
+| Red | `#ff4455` | bearish / block / danger / ลบ |
+| Yellow | `#ffcc00` | neutral / warning |
+| Blue | `#4488ff` | ข้อมูล / info |
+| Gray | `#666688` | inactive / waiting |
+| White | `#e8e8ff` | ข้อความหลัก |
+
+**Animation:** panel flash สีขาวจาง 0.5 วินาที เมื่อมีข้อมูลใหม่
+
+---
+
+### WebSocket Data Structure
+
+Server ส่ง JSON ทุก cycle ผ่าน `ws://host:8080/ws`:
+
+```json
+{
+  "type": "cycle_update",
+  "timestamp": "2026-05-26T09:12:23Z",
+  "cycle": 42,
+
+  "price": {
+    "value": 4523.70,
+    "change_1m": -0.022,
+    "ohlcv": { "open": 4522.0, "high": 4526.0, "low": 4521.0, "close": 4523.7, "volume": 0 },
+    "session": "European"
+  },
+
+  "indicators": {
+    "1m":  { "rsi": 46, "macd_trend": "bullish", "macd_hist": 0.12, "bb_pct": 0.15, "ema_trend": "up",   "atr": 1.93 },
+    "5m":  { "rsi": 50, "macd_trend": "bullish", "macd_hist": 0.08, "bb_pct": 0.50, "ema_trend": "up",   "atr": 3.20 },
+    "15m": { "rsi": 52, "macd_trend": "bearish", "macd_hist": -0.1, "bb_pct": 0.55, "ema_trend": "up",   "atr": 8.10 },
+    "1h":  { "rsi": 48, "macd_trend": "bullish", "macd_hist": 0.30, "bb_pct": 0.45, "ema_trend": "down", "atr": 18.70 }
+  },
+
+  "market_context": {
+    "dxy_chg": -0.01,  "dxy_impact": "neutral",
+    "us10y_chg": 0.00, "bond_impact": "neutral",
+    "spx_chg": 0.04,   "risk_sentiment": "neutral",
+    "btc_chg": 0.00,   "oil_chg": 0.03,
+    "session": "European",
+    "summary": "Dollar ทรงตัว | Bond Yield ทรงตัว | SPX +0.04% ทรงตัว"
+  },
+
+  "rule_engine": {
+    "passed": false,
+    "soft_score": 0,
+    "failed_reasons": ["Soft score 0/6 < 3"],
+    "soft_reasons": [
+      "+2 MACD 1m+15m aligned (bullish)",
+      "– MACD 1m (bullish) ≠ 1h (neutral)",
+      "– RSI 1m 46 นอก sweet spot (45-62)",
+      "– BB% 1m 0.15 ชิดขอบ band",
+      "+1 DXY 0.01% ≤ 0.5%"
+    ],
+    "hard_rules": [
+      { "name": "MACD 1m+5m aligned", "passed": true,  "detail": "bullish aligned" },
+      { "name": "RSI not extreme",     "passed": true,  "detail": "RSI 46 ∈ [28,75]" },
+      { "name": "ATR not spiked",      "passed": true,  "detail": "1.93 ≤ 20.25" }
+    ]
+  },
+
+  "similar_patterns": [
+    {
+      "timestamp": "2026-05-20T10:15:00Z",
+      "similarity": 0.94,
+      "prediction": "long",
+      "price_change_15m": 0.28,
+      "prediction_correct": true,
+      "result_label": "ทายถูก",
+      "pattern_label": "trend_continuation"
+    }
+  ],
+
+  "analysis": null,
+
+  "risk": null
+}
+```
+
+> `analysis` และ `risk` จะมีค่าเมื่อ `rule_engine.passed == true` เท่านั้น
+
+---
+
+### Tech Stack — Frontend
+
+| ส่วน | Technology |
+|---|---|
+| Backend | FastAPI + `python-multipart` |
+| WebSocket | FastAPI WebSocket + `asyncio` broadcast |
+| Static files | FastAPI `StaticFiles` → `static/` folder |
+| Frontend | HTML5 + CSS3 + Vanilla JS (ไม่มี framework) |
+| Port | `8080` |
+
+---
+
+### Files ที่จะเพิ่ม/แก้
+
+```
+apps/gold-analyzer/
+├── web_server.py         ← NEW: FastAPI app + WebSocket broadcaster
+├── static/
+│   └── index.html        ← NEW: Dashboard frontend (all-in-one file)
+├── main.py               ← EDIT: เพิ่ม start_web_server() + broadcast ใน run_cycle()
+├── requirements.txt      ← EDIT: เพิ่ม fastapi, uvicorn
+└── Dockerfile            ← EDIT: expose port 8080
+docker-compose.yml        ← EDIT: port 8080:8080
+```
+
+---
+
+### Phase 5 Tasks
+
+- [ ] 5.1 `web_server.py` — FastAPI + WebSocket broadcaster
+  - 🧪 test: เปิด `http://localhost:8080` → เห็น dashboard เชื่อม WS ได้
+  - 📝 commit: `feat(5.1): add websocket web server`
+
+- [ ] 5.2 `static/index.html` — Dashboard 7 panels
+  - 🧪 test: รัน cycle → เห็นข้อมูลอัพเดตใน browser ทุก 60 วินาที
+  - 📝 commit: `feat(5.2): add real-time dashboard frontend`
+
+- [ ] 5.3 integrate `main.py` + update deps + Docker
+  - 🧪 test: `docker-compose up` → เปิด `http://localhost:8080` ได้
+  - 📝 commit: `feat(5.3): integrate web dashboard into main pipeline`
+
+---
+
 *อัพเดตล่าสุด: 2026-05-26*

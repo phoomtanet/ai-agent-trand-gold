@@ -185,6 +185,39 @@ apps/gold-analyzer/
   - 🧪 test: `docker-compose up` → ทั้งสอง service up, log ปกติ ✓
   - 📝 commit: `feat(4.2): add docker-compose with mongodb`
 
-- [ ] 4.3 ทดสอบ end-to-end
-  - 🧪 test: รัน 5 นาที → เห็น log ทุก 1 นาที, มี record ใน MongoDB, ถ้า signal → Telegram ส่งจริง
+- [x] 4.3 ทดสอบ end-to-end
+  - 🧪 test: รัน 5 นาที → เห็น log ทุก 1 นาที, มี record ใน MongoDB, ถ้า signal → Telegram ส่งจริง ✓
   - 📝 commit: `feat(4.3): verified end-to-end pipeline`
+
+---
+
+### Phase 5 — Real-time Web Dashboard
+
+- [ ] 5.1 `web_server.py` — FastAPI + WebSocket broadcaster
+  - สร้าง FastAPI app + endpoint `/ws` สำหรับ broadcast ข้อมูลทุก cycle
+  - `broadcast_cycle(data)` — thread-safe ส่งจาก APScheduler thread → asyncio event loop
+  - Serve `static/index.html` ที่ `/`
+  - 🧪 test: `python web_server.py` → เปิด `http://localhost:8080` เห็น dashboard + WS เชื่อมได้
+  - 📝 commit: `feat(5.1): add websocket web server`
+
+- [ ] 5.2 `static/index.html` — Dashboard 7 panels
+  - Panel 1 · Price — ราคา, %, OHLCV, session, timestamp
+  - Panel 2 · Indicators — RSI/MACD/BB%/EMA/ATR × 4 TF (1m/5m/15m/1h)
+  - Panel 3 · Market Context — DXY/Bond/SPX/BTC/Oil + sentiment + summary
+  - Panel 4 · Rule Engine — PASS/BLOCK, Hard rules ✓/✗ รายข้อ, Soft score breakdown
+  - Panel 5 · Similar Patterns — top-3 จาก memory 7 วัน พร้อม result_label
+  - Panel 6 · AI Analysis — direction, safety_score, confidence, reason_th (แสดงเสมอ)
+  - Panel 7 · Risk Plan — entry/SL/TP/RR (แสดงเสมอ)
+  - Dark theme (`#0d0d1a`) + color code: green=bullish, red=bearish, yellow=neutral
+  - Flash animation เมื่อมีข้อมูลใหม่
+  - Auto-reconnect WebSocket
+  - 🧪 test: รัน main.py → เปิด browser → เห็นข้อมูลอัพเดตทุก 60 วินาที ทุก panel
+  - 📝 commit: `feat(5.2): add real-time dashboard with 7 panels`
+
+- [ ] 5.3 Integrate + Update deps + Docker
+  - แก้ `main.py` — เรียก `web_server.start()` + เรียก `broadcast_cycle()` ใน `run_cycle()`
+  - แก้ `requirements.txt` — เพิ่ม `fastapi`, `uvicorn`
+  - แก้ `Dockerfile` — เพิ่ม `EXPOSE 8080`
+  - แก้ `docker-compose.yml` — เพิ่ม port `8080:8080`
+  - 🧪 test: `docker-compose up --build` → เปิด `http://localhost:8080` ได้จาก host
+  - 📝 commit: `feat(5.3): integrate web dashboard into pipeline and docker`
