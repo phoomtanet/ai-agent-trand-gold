@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Gold Analyst</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:     #0d0d1a;
+    --panel:  #1a1a2e;
+    --border: #2a2a4a;
+    --green:  #00ff88;
+    --red:    #ff4455;
+    --yellow: #ffcc00;
+    --blue:   #4488ff;
+    --gray:   #666688;
+    --white:  #e8e8ff;
+    --dim:    #9999bb;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'Sarabun', 'Courier New', sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  #header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: #111125;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  #live-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--gray);
+    flex-shrink: 0;
+  }
+  #live-dot.connected { background: var(--green); animation: pulse 2s infinite; }
+  #live-dot.error     { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  #header-title { font-size: 17px; font-weight: bold; flex: 1; }
+  #header-nav   { font-size: 12px; }
+  #header-nav a { color: var(--blue); text-decoration: none; }
+  #header-nav a:hover { text-decoration: underline; }
+  #header-meta  { color: var(--dim); font-size: 12px; text-align: right; line-height: 1.5; }
+
+  /* ── Main ── */
+  main {
+    flex: 1;
+    max-width: 820px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* ── Price bar ── */
+  #price-bar {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  #price-val  { font-size: 26px; font-weight: bold; }
+  #price-chg  { font-size: 16px; }
+  #price-sep  { color: var(--border); }
+  #price-sess { color: var(--blue); font-size: 13px; }
+  #price-ts   { color: var(--dim); font-size: 12px; margin-left: auto; }
+
+  /* ── Commentary box ── */
+  #commentary-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    position: relative;
+    min-height: 160px;
+  }
+  #commentary-box.flash { animation: flashbox .6s; }
+  @keyframes flashbox {
+    0%   { border-color: var(--blue); box-shadow: 0 0 12px #4488ff44; }
+    100% { border-color: var(--border); box-shadow: none; }
+  }
+
+  #com-label {
+    font-size: 11px;
+    color: var(--gray);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  #com-icon { font-size: 18px; margin-right: 6px; }
+
+  #com-text {
+    font-size: 17px;
+    line-height: 1.8;
+    color: var(--white);
+    font-family: 'Sarabun', sans-serif;
+    white-space: pre-wrap;
+    min-height: 80px;
+  }
+  #com-text.loading { color: var(--dim); font-style: italic; }
+
+  #com-cursor {
+    display: inline-block;
+    width: 2px; height: 1.1em;
+    background: var(--blue);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  #com-footer {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--dim);
+    text-align: right;
+  }
+
+  /* ── History ── */
+  #history-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+  }
+  #history-label {
+    font-size: 11px;
+    color: var(--gray);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .hist-item {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .hist-item:last-child { border-bottom: none; }
+  .hist-time { color: var(--blue); font-family: monospace; padding-top: 1px; flex-shrink: 0; }
+  .hist-text { color: var(--dim); }
+
+  /* ── Status bar ── */
+  #status-bar {
+    text-align: center;
+    padding: 8px;
+    font-size: 11px;
+    color: var(--gray);
+    border-top: 1px solid var(--border);
+    margin-top: auto;
+  }
+
+  .g { color: var(--green); }
+  .r { color: var(--red); }
+  .y { color: var(--yellow); }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="live-dot"></div>
+  <div id="header-title">🎙 AI Gold Analyst</div>
+  <div id="header-nav"><a href="/">← Dashboard</a></div>
+  <div id="header-meta">
+    <span id="hdr-time">–</span><br>
+    <span id="hdr-cycle" style="color:var(--dim);font-size:12px">Cycle –</span>
+  </div>
+</div>
+
+<main>
+  <!-- Price bar -->
+  <div id="price-bar">
+    <span id="price-val" class="g">–</span>
+    <span id="price-chg" class="g">–</span>
+    <span id="price-sep">|</span>
+    <span id="price-sess">–</span>
+    <span id="price-ts">–</span>
+  </div>
+
+  <!-- AI Commentary -->
+  <div id="commentary-box">
+    <div id="com-label"><span id="com-icon">🤖</span> AI กำลังวิเคราะห์</div>
+    <div id="com-text" class="loading">กำลังเชื่อมต่อ...</div>
+    <div id="com-footer">–</div>
+  </div>
+
+  <!-- History -->
+  <div id="history-box">
+    <div id="history-label">📜 ประวัติการวิเคราะห์ (5 รอบล่าสุด)</div>
+    <div id="history-list"><div class="hist-item"><span class="hist-time">–</span><span class="hist-text" style="color:var(--dim)">รอข้อมูล...</span></div></div>
+  </div>
+</main>
+
+<div id="status-bar">กำลังเชื่อมต่อ...</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function chgColor(v) { return v > 0 ? 'g' : v < 0 ? 'r' : 'y'; }
+function chgStr(v) {
+  if (v == null) return '–';
+  const s = v > 0 ? '▲ +' : v < 0 ? '▼ ' : '▶ ';
+  return s + Math.abs(Number(v)).toFixed(3) + '%';
+}
+
+let _typewriterTimer = null;
+
+function typewriter(el, text, speed = 28) {
+  if (_typewriterTimer) clearInterval(_typewriterTimer);
+  el.classList.remove('loading');
+
+  // แสดง cursor
+  let cursor = document.getElementById('com-cursor');
+  if (!cursor) {
+    cursor = document.createElement('span');
+    cursor.id = 'com-cursor';
+    el.parentElement.appendChild(cursor);
+  }
+  cursor.style.display = 'inline-block';
+
+  let i = 0;
+  el.textContent = '';
+  _typewriterTimer = setInterval(() => {
+    if (i < text.length) {
+      el.textContent += text[i++];
+    } else {
+      clearInterval(_typewriterTimer);
+      setTimeout(() => { if (cursor) cursor.style.display = 'none'; }, 1500);
+    }
+  }, speed);
+}
+
+function flashBox() {
+  const box = $('commentary-box');
+  box.classList.remove('flash');
+  void box.offsetWidth;
+  box.classList.add('flash');
+}
+
+function applyData(d) {
+  // Header
+  const ts = d.timestamp ? d.timestamp.replace('T',' ').slice(0,19)+' UTC' : '–';
+  $('hdr-time').textContent = ts;
+  $('hdr-cycle').textContent = `Cycle #${d.cycle ?? '–'}`;
+
+  // Price bar
+  const price = d.price;
+  const chg   = d.change_1m;
+  const cls   = chgColor(chg);
+  $('price-val').textContent = price != null
+    ? '$' + Number(price).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})
+    : '–';
+  $('price-val').className = cls;
+  $('price-chg').textContent = chgStr(chg);
+  $('price-chg').className = cls;
+  $('price-sess').textContent = d.session || '–';
+  $('price-ts').textContent = ts;
+
+  // Commentary text — typewriter effect
+  const text = d.text || '(ไม่มีคำวิเคราะห์)';
+  flashBox();
+  typewriter($('com-text'), text);
+  $('com-footer').textContent = `อัพเดตล่าสุด: ${ts}`;
+
+  // History
+  const hist = d.history || [];
+  if (hist.length === 0) {
+    $('history-list').innerHTML = '<div class="hist-item"><span class="hist-time">–</span><span class="hist-text" style="color:var(--dim)">ยังไม่มีประวัติ</span></div>';
+  } else {
+    $('history-list').innerHTML = hist.map(h => {
+      const t = h.timestamp ? h.timestamp.replace('T',' ').slice(11,16)+' UTC' : '–';
+      // ตัดให้สั้นถ้ายาวเกิน
+      const preview = h.text ? (h.text.length > 80 ? h.text.slice(0,80)+'...' : h.text) : '–';
+      return `<div class="hist-item"><span class="hist-time">${t}</span><span class="hist-text">${preview}</span></div>`;
+    }).join('');
+  }
+}
+
+// ── WebSocket ────────────────────────────────────────────────────
+let ws, reconnectDelay = 2000;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws/commentary`);
+
+  ws.onopen = () => {
+    $('live-dot').className = 'connected';
+    $('status-bar').textContent = 'เชื่อมต่อแล้ว — รอ AI วิเคราะห์รอบถัดไป...';
+    reconnectDelay = 2000;
+  };
+
+  ws.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      applyData(d);
+      $('status-bar').textContent = `อัพเดตล่าสุด: ${(d.timestamp||'').replace('T',' ').slice(0,19)} UTC`;
+    } catch(err) { console.error('parse', err); }
+  };
+
+  ws.onerror = () => {
+    $('live-dot').className = 'error';
+  };
+
+  ws.onclose = () => {
+    $('live-dot').className = 'error';
+    $('status-bar').textContent = `การเชื่อมต่อหลุด — reconnect ใน ${reconnectDelay/1000}s...`;
+    setTimeout(() => { reconnectDelay = Math.min(reconnectDelay*1.5, 30000); connect(); }, reconnectDelay);
+  };
+}
+
+connect();
+</script>
+</body>
+</html>

@@ -806,3 +806,149 @@ docker-compose.yml        ← EDIT: port 8080:8080
 ---
 
 *อัพเดตล่าสุด: 2026-05-26*
+
+---
+
+## Phase 6 — AI Market Commentary (อธิบายแบบคำพูด)
+
+### ภาพรวม
+
+หน้าเว็บแยกต่างหากที่ใช้ LLM อธิบายสภาวะตลาดทองทุก 1 นาที **แบบภาษาพูดภาษาไทย**
+ไม่มี Rule Engine, ไม่มี Trade Signal — เป็นแค่ "นักวิเคราะห์ AI" พูดให้ฟัง
+
+```
+Browser (/commentary) ←── WebSocket /ws/commentary ←── commentary_engine.py ←── run_cycle()
+```
+
+---
+
+### หน้าที่แสดงผล — `/commentary`
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  🎙 AI Gold Analyst  ●LIVE   10:15:23 UTC  Cycle #42    │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  ราคาตอนนี้: $4,523.70  ▲ +0.022%  European Session    │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  🤖 AI กำลังพูด...                                      │
+│                                                         │
+│  "ราคาทองตอนนี้อยู่ที่ 4,523 ดอลลาร์ ปรับตัวขึ้น       │
+│   เล็กน้อยจากรอบก่อน สัญญาณ MACD ทั้ง 1 นาทีและ 5     │
+│   นาทีชี้ไปทางเดียวกันว่าราคากำลังมีแนวโน้มขึ้น         │
+│   RSI อยู่ที่ 55 ซึ่งยังไม่ถึงโซน Overbought           │
+│   ค่าเงินดอลลาร์ทรงตัว ไม่กดดันทองมากนัก               │
+│   โดยรวมสภาวะตลาดค่อนข้างเป็นกลาง รอดูทิศทางต่อ..."   │
+│                                                         │
+│  ── อัพเดตล่าสุด: 10:15:23 UTC ──────────────────────  │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  📜 ประวัติการวิเคราะห์ (5 รอบล่าสุด)                   │
+│  10:14 — "ราคาทรงตัว MACD เริ่ม bullish..."            │
+│  10:13 — "DXY อ่อนค่า หนุนราคาทอง..."                  │
+│  10:12 — "RSI ใกล้ oversold ระวัง bounce..."            │
+│  10:11 — "ตลาด sideways ไม่มีทิศทางชัด..."             │
+│  10:10 — "European session เปิด ราคาผันผวน..."          │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Prompt ที่ใช้กับ LLM
+
+**System Prompt:**
+```
+คุณเป็นนักวิเคราะห์ทองคำที่อธิบายสภาวะตลาดด้วยภาษาพูดภาษาไทยที่เข้าใจง่าย
+กฎ:
+- พูดแบบเป็นธรรมชาติ ไม่เป็นทางการเกินไป
+- อธิบายสั้นๆ 3-5 ประโยค
+- ไม่ต้องแนะนำให้ซื้อหรือขาย
+- อธิบาย indicator เป็นภาษาคนธรรมดา (ไม่ต้องพูดถึง MACD โดยตรง แต่บอกว่า "momentum กำลัง...")
+- ใส่บริบท: ราคา, ทิศทาง, สาเหตุจาก market context, สรุป
+- ตอบเป็น plain text ภาษาไทยเท่านั้น ห้าม JSON ห้าม markdown
+- ถ้าตลาดไม่มีทิศทางชัด ให้พูดว่าตลาดยังแกว่งตัวหรือรอทิศทาง อย่าฝืนสรุปว่ามีแนวโน้ม
+- ห้ามมั่นใจเกินจริง — ใช้คำเช่น "ดูเหมือนว่า" "น่าจะ" "รอดูต่อ"
+- ถ้า indicator หลาย timeframe ชี้ไปคนละทิศ ห้ามใช้คำว่า "แนวโน้มชัดเจน" ให้บอกว่า "สัญญาณยังขัดแย้งกัน"
+```
+
+**User Message (ใส่ข้อมูลจริง):**
+```
+ราคา XAU/USD: $4,523.70 (+0.022%)
+Session: European
+
+Indicators:
+- 1m: RSI 55, momentum กำลังขึ้น, ATR 1.99 (ปกติ)
+- 5m: RSI 50, momentum กำลังขึ้น
+- 15m: RSI 46, momentum ลง
+- 1h: RSI 48, momentum ขึ้น
+
+Market:
+- Dollar Index: -0.01% (ทรงตัว)
+- ตลาดหุ้น SPX: +0.04% (ทรงตัว)
+- Risk sentiment: neutral
+
+อธิบายสภาวะตลาดตอนนี้ด้วยภาษาพูดภาษาไทยสั้นๆ
+```
+
+---
+
+### WebSocket Data Structure
+
+Server ส่งผ่าน `/ws/commentary`:
+
+```json
+{
+  "type": "commentary_update",
+  "cycle": 42,
+  "timestamp": "2026-05-26T10:15:23Z",
+  "price": 4523.70,
+  "change_1m": 0.022,
+  "session": "European",
+  "text": "ราคาทองตอนนี้อยู่ที่ 4,523 ดอลลาร์...",
+  "history": [
+    { "timestamp": "2026-05-26T10:14:23Z", "text": "ราคาทรงตัว..." },
+    { "timestamp": "2026-05-26T10:13:23Z", "text": "DXY อ่อนค่า..." }
+  ]
+}
+```
+
+---
+
+### Files ที่จะเพิ่ม/แก้
+
+```
+apps/gold-analyzer/
+├── commentary_engine.py     ← NEW: สร้าง commentary ผ่าน LLM
+├── static/
+│   └── commentary.html      ← NEW: หน้าเว็บอธิบายแบบคำพูด
+├── web_server.py            ← EDIT: เพิ่ม /ws/commentary + /commentary route
+└── main.py                  ← EDIT: เรียก commentary ทุก 60s ใน run_cycle
+```
+
+---
+
+### Phase 6 Tasks
+
+- [ ] 6.1 `commentary_engine.py` — LLM สร้างคำอธิบายภาษาพูด
+  - รับ price, indicators, market_context → ส่ง LLM → คืน plain text ภาษาไทย
+  - เก็บ history ล่าสุด 10 รอบ ใน memory
+  - 🧪 test: `python commentary_engine.py` → print คำอธิบายภาษาพูด 3-5 ประโยค ✓
+  - 📝 commit: `feat(6.1): add commentary engine with thai narrative`
+
+- [ ] 6.2 `static/commentary.html` — หน้าเว็บอธิบายแบบคำพูด
+  - แสดงราคา + คำอธิบายจาก AI แบบ real-time
+  - ประวัติ 5 รอบล่าสุด
+  - Link กลับ dashboard หลัก (`/`)
+  - Dark theme เหมือนกัน, auto-reconnect WS
+  - 🧪 test: เปิด `http://localhost:8080/commentary` → เห็นข้อความอัพเดตทุก 60s ✓
+  - 📝 commit: `feat(6.2): add commentary web page`
+
+- [ ] 6.3 Integrate — web_server + main
+  - แก้ `web_server.py` — เพิ่ม `/commentary` route + `/ws/commentary` endpoint + `broadcast_commentary(data)`
+  - แก้ `main.py` — เรียก `commentary_engine.generate()` + `web_server.broadcast_commentary()` ใน `run_cycle()`
+  - 🧪 test: รัน main.py → เปิด /commentary → เห็นข้อความใหม่ทุก 60s ✓
+  - 📝 commit: `feat(6.3): integrate commentary into pipeline`

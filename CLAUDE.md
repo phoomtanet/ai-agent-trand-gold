@@ -221,3 +221,28 @@ apps/gold-analyzer/
   - แก้ `docker-compose.yml` — เพิ่ม port `8080:8080`
   - 🧪 test: import ครบ, rule_engine.hard_rules ✓, broadcast structure ถูกต้อง ✓
   - 📝 commit: `feat(5.3): integrate web dashboard into pipeline and docker`
+
+---
+
+### Phase 6 — AI Market Commentary (อธิบายแบบคำพูด)
+
+- [x] 6.1 `commentary_engine.py` — LLM สร้างคำอธิบายภาษาพูด
+  - รับ price, indicators, market_context → prompt LLM → คืน plain text ภาษาไทย 3-5 ประโยค
+  - ดึง history จาก MongoDB (gold_ticks) แทนการเก็บเอง
+  - ไม่มี Rule Engine, ไม่มี trade signal — แค่ "อธิบายสภาวะตลาด"
+  - 🧪 test: `python commentary_engine.py` → print คำอธิบายภาษาพูดภาษาไทย ✓
+  - 📝 commit: `feat(6.1): add ai commentary engine using mongodb history`
+
+- [x] 6.2 `static/commentary.html` — หน้าเว็บอธิบายแบบคำพูด
+  - URL: `http://localhost:8080/commentary`
+  - แสดง: ราคา + session + คำอธิบาย AI real-time + history 5 รอบล่าสุด
+  - Link กลับ dashboard `/`
+  - Dark theme + auto-reconnect WebSocket
+  - 🧪 test: เปิด `/commentary` → HTTP 200, เห็นข้อความอัพเดตทุก 60s ✓
+  - 📝 commit: `feat(6.2): add commentary html page`
+
+- [x] 6.3 Integrate — web_server + main
+  - แก้ `web_server.py` — เพิ่ม `/commentary` FileResponse + `/ws/commentary` endpoint + `broadcast_commentary(data)`
+  - แก้ `main.py` — เพิ่ม `import commentary_engine` + `_broadcast_com()` helper + เรียกใน run_cycle() ทั้ง BLOCK และ PASS branch
+  - 🧪 test: `docker-compose up --build` → `/commentary` HTTP 200, pipeline รันปกติไม่มี commentary error ✓
+  - 📝 commit: `feat(6.3): integrate commentary into pipeline and docker`

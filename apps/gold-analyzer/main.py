@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
@@ -18,8 +18,11 @@ import risk_manager
 import notifier
 import outcome_tracker
 import web_server
+import commentary_engine
 
 _cycle_count = 0
+_com_history: list[dict] = []        # rolling last-5 commentary entries
+_last_cycle_snapshot: dict | None = None  # cached market data for commentary job
 
 # ── logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -86,8 +89,37 @@ def _log_cycle(
     print()
 
 
+def _broadcast_com(data: fetcher.GoldData, ind: dict, ctx: dict, cycle: int) -> None:
+    global _com_history
+    try:
+        com_text = commentary_engine.generate(data.price, data.change_1m, ind, ctx)
+        ts = data.timestamp.isoformat() if hasattr(data.timestamp, "isoformat") else str(data.timestamp)
+        web_server.broadcast_commentary({
+            "cycle": cycle,
+            "timestamp": ts,
+            "price": data.price,
+            "change_1m": data.change_1m,
+            "session": ctx.get("session", ""),
+            "text": com_text,
+            "history": list(_com_history),
+        })
+        _com_history = ([
+            {"timestamp": ts, "price": data.price, "change_1m": data.change_1m, "text": com_text}
+        ] + _com_history)[:5]
+    except Exception as e:
+        print(f"[{_ts()}] commentary error: {e}")
+
+
+def _commentary_job() -> None:
+    if _last_cycle_snapshot is None:
+        return
+    snap = _last_cycle_snapshot
+    _broadcast_com(snap["data"], snap["ind"], snap["ctx"], snap["cycle"])
+    print(f"[{_ts()}] commentary broadcast (10-min)")
+
+
 def run_cycle() -> None:
-    global _cycle_count
+    global _cycle_count, _last_cycle_snapshot
     _cycle_count += 1
     cycle = _cycle_count
 
@@ -101,6 +133,9 @@ def run_cycle() -> None:
         # ── Indicators + Context ────────────────────────────────────────
         ind = indicators.calculate(data.candles)
         ctx = market_context.analyze(data.context) if data.context else {}
+
+        # cache latest snapshot for 10-min commentary job
+        _last_cycle_snapshot = {"data": data, "ind": ind, "ctx": ctx, "cycle": cycle}
 
         # ── Rule Engine ─────────────────────────────────────────────────
         rule = rule_engine.check(ind, ctx)
@@ -213,8 +248,10 @@ if __name__ == "__main__":
     scheduler = BlockingScheduler(timezone="UTC")
     scheduler.add_job(run_cycle,           "interval", seconds=config.FETCH_INTERVAL_SEC, id="run_cycle",   next_run_time=datetime.now(timezone.utc))
     scheduler.add_job(_track_outcomes_job, "interval", seconds=300,                        id="track_outcomes")
+    scheduler.add_job(_commentary_job,     "interval", seconds=600,                        id="commentary",
+                      next_run_time=datetime.now(timezone.utc) + timedelta(seconds=70))
 
-    print(f"[main] Scheduler started — run_cycle every {config.FETCH_INTERVAL_SEC}s, track_outcomes every 300s")
+    print(f"[main] Scheduler started — run_cycle every {config.FETCH_INTERVAL_SEC}s, commentary every 600s, track_outcomes every 300s")
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):

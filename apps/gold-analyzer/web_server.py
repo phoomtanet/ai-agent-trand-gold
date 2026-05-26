@@ -13,9 +13,16 @@ from fastapi.staticfiles import StaticFiles
 
 _app = FastAPI(title="Gold Analyzer Dashboard")
 _loop: Optional[asyncio.AbstractEventLoop] = None
+
+# dashboard clients
 _clients: set[WebSocket] = set()
 _clients_lock = threading.Lock()
 _latest: dict = {}
+
+# commentary clients
+_com_clients: set[WebSocket] = set()
+_com_clients_lock = threading.Lock()
+_latest_commentary: dict = {}
 
 _STATIC = Path(__file__).parent / "static"
 
@@ -26,17 +33,20 @@ _STATIC = Path(__file__).parent / "static"
 async def index():
     return FileResponse(_STATIC / "index.html")
 
+@_app.get("/commentary")
+async def commentary_page():
+    return FileResponse(_STATIC / "commentary.html")
+
 _app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 
 
-# ─── WebSocket ────────────────────────────────────────────────────────────────
+# ─── WebSocket — Dashboard ────────────────────────────────────────────────────
 
 @_app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     with _clients_lock:
         _clients.add(ws)
-    # ส่ง snapshot ล่าสุดทันทีเมื่อ client เชื่อมต่อ
     if _latest:
         try:
             await ws.send_text(json.dumps(_latest, ensure_ascii=False, default=str))
@@ -44,7 +54,7 @@ async def ws_endpoint(ws: WebSocket):
             pass
     try:
         while True:
-            await ws.receive_text()   # keep-alive ping
+            await ws.receive_text()
     except WebSocketDisconnect:
         pass
     finally:
@@ -71,6 +81,49 @@ def broadcast_cycle(data: dict) -> None:
     """Thread-safe — เรียกจาก APScheduler thread ได้เลย"""
     if _loop and not _loop.is_closed():
         asyncio.run_coroutine_threadsafe(_broadcast(data), _loop)
+
+
+# ─── WebSocket — Commentary ───────────────────────────────────────────────────
+
+@_app.websocket("/ws/commentary")
+async def ws_commentary_endpoint(ws: WebSocket):
+    await ws.accept()
+    with _com_clients_lock:
+        _com_clients.add(ws)
+    if _latest_commentary:
+        try:
+            await ws.send_text(json.dumps(_latest_commentary, ensure_ascii=False, default=str))
+        except Exception:
+            pass
+    try:
+        while True:
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        with _com_clients_lock:
+            _com_clients.discard(ws)
+
+
+async def _broadcast_commentary(data: dict) -> None:
+    _latest_commentary.update(data)
+    text = json.dumps(data, ensure_ascii=False, default=str)
+    dead: set[WebSocket] = set()
+    with _com_clients_lock:
+        targets = set(_com_clients)
+    for ws in targets:
+        try:
+            await ws.send_text(text)
+        except Exception:
+            dead.add(ws)
+    with _com_clients_lock:
+        _com_clients.difference_update(dead)
+
+
+def broadcast_commentary(data: dict) -> None:
+    """Thread-safe — เรียกจาก APScheduler thread ได้เลย"""
+    if _loop and not _loop.is_closed():
+        asyncio.run_coroutine_threadsafe(_broadcast_commentary(data), _loop)
 
 
 # ─── Server lifecycle ─────────────────────────────────────────────────────────
